@@ -1,0 +1,22 @@
+# API y Servidor Web
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+
+# Tareas en Segundo Plano (Asincronía)
+celery
+redis
+
+# IA y Base de Datos Vectorial
+openai
+qdrant-client
+tenacity
+
+# Procesamiento Documental (Multimodal)
+pymupdf
+
+# Pruebas Unitarias
+pytest
+httpx
