@@ -33,9 +33,17 @@ class ChatResponse(BaseModel):
 
 app = FastAPI(title="RAG Multimodal API", version="1.0.0")
 
+# --- MOCK PARA EVITAR ERROR 429 DE OPENAI ---
+class MockLLMProvider(ILLMProvider):
+    def generate_answer(self, context: str, query: str) -> str:
+        return "¡Éxito! Esta es una respuesta simulada. Tu motor RAG recuperó los fragmentos del PDF correctamente desde Qdrant. La conexión con OpenAI está desactivada temporalmente."
+
+app = FastAPI(title="RAG Multimodal API", version="1.0.0")
+
 # --- INYECCIÓN DE DEPENDENCIAS ---
 def get_llm_provider() -> ILLMProvider:
-    return OpenAIService()
+    return OpenAIService() # <-- Línea original comentada
+    ##return MockLLMProvider() # <-- Inyectamos el Mock
 
 def get_vector_db() -> QdrantRepository:
     return QdrantRepository(collection_name="document_chunks")
@@ -60,6 +68,7 @@ async def upload_document(file: UploadFile = File(...)):
 def get_status(job_id: str):
     return StatusResponse(job_id=job_id, status="Processing")
 
+
 @app.post("/chat", response_model=ChatResponse, tags=["Motor RAG"])
 def chat_with_rag(
     request: ChatRequest, 
@@ -67,7 +76,8 @@ def chat_with_rag(
     vector_db: QdrantRepository = Depends(get_vector_db)
 ):
     """CU-04: Consulta RAG (Chat Híbrido Multimodal)"""
-    # 1. Recuperar contexto de Qdrant
+    
+    # 1. Recuperar contexto REAL de Qdrant (Quitamos el Mock)
     search_results = vector_db.search_context(query=request.query, limit=3)
     
     if not search_results:
@@ -83,7 +93,7 @@ def chat_with_rag(
     for result in search_results:
         context_texts.append(result["text"])
         # Tomar la primera imagen asociada a este fragmento de texto si existe
-        img_url = result["associated_images"][0] if result["associated_images"] else None
+        img_url = result["associated_images"][0] if result.get("associated_images") else None
         
         sources.append(
             SourceMetadata(page=result["page"], image_url=img_url)
@@ -91,7 +101,7 @@ def chat_with_rag(
         
     merged_context = "\n\n---\n\n".join(context_texts)
     
-    # 3. Generar la respuesta inyectando el contexto real
+    # 3. Generar la respuesta usando OpenAI real
     answer = llm.generate_answer(context=merged_context, query=request.query)
     
     return ChatResponse(answer=answer, sources=sources)
